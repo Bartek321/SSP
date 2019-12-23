@@ -1,3 +1,5 @@
 sudo mn --controller=remote,ip=127.0.0.1,port=6653 --switch ovs,protocols=OpenFlow10 --custom example-topo.py --topo mytopo
 
 sudo ovs-ofctl dump-flows s1 -O OpenFlow10
+
+pip install Flask - potrzebne do skryptu z api
