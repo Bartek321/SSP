@@ -27,6 +27,7 @@ import net.floodlightcontroller.core.IFloodlightProviderService;
 import net.floodlightcontroller.core.IOFSwitch;
 import net.floodlightcontroller.packet.Data;
 import net.floodlightcontroller.packet.Ethernet;
+import net.floodlightcontroller.packet.ICMP;
 import net.floodlightcontroller.packet.IPv4;
 import net.floodlightcontroller.packet.TCP;
 import net.floodlightcontroller.packet.UDP;
@@ -43,6 +44,10 @@ public class Flows {
 	protected static boolean FLOWMOD_DEFAULT_MATCH_MAC = true;
 	protected static boolean FLOWMOD_DEFAULT_MATCH_IP_ADDR = true;
 	protected static boolean FLOWMOD_DEFAULT_MATCH_TRANSPORT = true;
+	
+	private Ethernet eth;
+	//private IPv4 ipv4;
+	private FloodlightContext cntx;
 
 	public Flows() {
 		logger.info("Flows() begin/end");
@@ -90,13 +95,80 @@ public class Flows {
 		sw.write(po);
 	}
 
-	public static void simpleAdd(IOFSwitch sw, OFPacketIn pin, FloodlightContext cntx, OFPort outPort) {
+	public static void simpleAdd(IOFSwitch sw, OFPacketIn pin, FloodlightContext cntx, OFPort outPort, Ethernet eth) {
 		// FlowModBuilder
 		OFFlowMod.Builder fmb = sw.getOFFactory().buildFlowAdd();
 		
+		//Ethernet eth = IFloodlightProviderService.bcStore.get(cntx, IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
+
+		;
+		IPv4 ipv4 = (IPv4) eth.getPayload();
 		// match
 		Match.Builder mb = sw.getOFFactory().buildMatch();
 		mb.setExact(MatchField.IN_PORT, pin.getInPort());
+		
+		VlanVid vlan = VlanVid.ofVlan(eth.getVlanID());
+		MacAddress srcMac = eth.getSourceMACAddress();
+		MacAddress dstMac = eth.getDestinationMACAddress();
+		
+		if (FLOWMOD_DEFAULT_MATCH_MAC) {
+			mb.setExact(MatchField.ETH_SRC, srcMac).setExact(MatchField.ETH_DST, dstMac);
+		}
+
+		if (FLOWMOD_DEFAULT_MATCH_VLAN) {
+			if (!vlan.equals(VlanVid.ZERO)) {
+				mb.setExact(MatchField.VLAN_VID, OFVlanVidMatch.ofVlanVid(vlan));
+			}
+		}
+		
+		if(ipv4 != null) {
+		if(eth.getEtherType() == EthType.IPv4) {
+			logger.info("ZZZZ: " + ipv4.getSourceAddress() + " " + ipv4.getProtocol());
+			//mb.setExact(MatchField.IPV4_SRC, ipv4.getSourceAddress());
+			//mb.setExact(MatchField.IP_PROTO, ipv4.getProtocol());
+			//mb.setExact(MatchField.ETH_TYPE, EthType.IPv4).setExact(MatchField.IPV4_SRC, ipv4.getSourceAddress())
+			//.setExact(MatchField.IPV4_DST, ipv4.getDestinationAddress());
+			
+			if (FLOWMOD_DEFAULT_MATCH_IP_ADDR) {
+				mb.setExact(MatchField.ETH_TYPE, EthType.IPv4).setExact(MatchField.IPV4_SRC, ipv4.getSourceAddress())
+				.setExact(MatchField.IPV4_DST, ipv4.getDestinationAddress());
+			}
+			
+			if (FLOWMOD_DEFAULT_MATCH_TRANSPORT) {
+			if (!FLOWMOD_DEFAULT_MATCH_IP_ADDR) {
+				mb.setExact(MatchField.ETH_TYPE, EthType.IPv4);
+			}
+			
+			if (ipv4.getProtocol() == IpProtocol.TCP) {
+				TCP tcp = (TCP) ipv4.getPayload();
+				mb.setExact(MatchField.IP_PROTO, IpProtocol.TCP).setExact(MatchField.TCP_SRC, tcp.getSourcePort())
+				.setExact(MatchField.TCP_DST, tcp.getDestinationPort());
+				//mb.setExact(MatchField.TCP_SRC, tcp.getSourcePort());
+				logger.info("TOOO: TCP" );
+			} else if (ipv4.getProtocol() == IpProtocol.UDP) {
+				UDP udp = (UDP) ipv4.getPayload();
+				mb.setExact(MatchField.IP_PROTO, IpProtocol.UDP).setExact(MatchField.UDP_SRC, udp.getSourcePort())
+				.setExact(MatchField.UDP_DST, udp.getDestinationPort());
+				//mb.setExact(MatchField.UDP_SRC, udp.getSourcePort());
+				logger.info("TAAA: UDP" );
+			} else if (ipv4.getProtocol() == IpProtocol.ICMP) {
+				ICMP icmp = (ICMP) ipv4.getPayload();
+				mb.setExact(MatchField.IP_PROTO, IpProtocol.ICMP);
+				logger.info("TAAA: ICMP" );
+			}
+			}} else if (eth.getEtherType() == EthType.ARP) { /*
+				 * shallow check for
+				 * equality is okay for
+				 * EthType
+				 */
+				mb.setExact(MatchField.ETH_TYPE, EthType.ARP);
+			}
+		
+		} else {
+			logger.info("NNNN");
+		}
+		
+		
 		Match m = mb.build();
 		
 		// actions
@@ -105,7 +177,7 @@ public class Flows {
 		aob.setPort(outPort);
 		aob.setMaxLen(Integer.MAX_VALUE);
 		actions.add(aob.build());
-		
+
 		fmb.setMatch(m)
 		.setIdleTimeout(FLOWMOD_DEFAULT_IDLE_TIMEOUT)
 		.setHardTimeout(FLOWMOD_DEFAULT_HARD_TIMEOUT)
@@ -116,12 +188,12 @@ public class Flows {
 		
 		// write flow to switch
 		try {
-		sw.write(fmb.build());
-		logger.info("Flow from port {} forwarded to port {}; match: {}",
-		new Object[] { pin.getInPort().getPortNumber(), outPort.getPortNumber(),
-		m.toString() });
+			sw.write(fmb.build());
+			logger.info("Flow from port {} forwarded to port {}; match: {}",
+			new Object[] { pin.getInPort().getPortNumber(), outPort.getPortNumber(),
+							m.toString() });
 		} catch (Exception e) {
-		logger.error("error {}", e);
+			logger.error("error {}", e);
 		}
 	}
 

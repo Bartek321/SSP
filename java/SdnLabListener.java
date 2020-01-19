@@ -17,13 +17,19 @@ import net.floodlightcontroller.core.module.FloodlightModuleContext;
 import net.floodlightcontroller.core.module.FloodlightModuleException;
 import net.floodlightcontroller.core.module.IFloodlightModule;
 import net.floodlightcontroller.core.module.IFloodlightService;
-
+import net.floodlightcontroller.packet.Ethernet;
+import net.floodlightcontroller.packet.IPv4;
+import net.floodlightcontroller.packet.TCP;
+import net.floodlightcontroller.packet.UDP;
 import net.floodlightcontroller.core.IFloodlightProviderService;
 import java.util.ArrayList;
 
 import org.projectfloodlight.openflow.protocol.OFMessage;
 import org.projectfloodlight.openflow.protocol.OFPacketIn;
 import org.projectfloodlight.openflow.protocol.OFType;
+import org.projectfloodlight.openflow.types.EthType;
+import org.projectfloodlight.openflow.types.IPv4Address;
+import org.projectfloodlight.openflow.types.IpProtocol;
 import org.projectfloodlight.openflow.types.OFPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,12 +38,16 @@ public class SdnLabListener implements IOFMessageListener, IFloodlightModule {
 	
 	protected IFloodlightProviderService floodlightProvider;
 	protected static Logger logger;
+	private Ethernet eth;
+	private IPv4 ipv4;
+	private FloodlightContext cntx;
 	
 	HashMap<Integer, Integer> processMap = new HashMap<>();
 	
 	int id = 0;
 	
 	public SdnLabListener() {
+		this.cntx = cntx;
 		Runnable run = new Runnable() {
 		    public void run() {
 		    	id = getId();
@@ -45,7 +55,7 @@ public class SdnLabListener implements IOFMessageListener, IFloodlightModule {
 		    }
 		};
 		ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
-		executor.scheduleAtFixedRate(run, 0, 15, TimeUnit.SECONDS);
+		executor.scheduleAtFixedRate(run, 0, 5, TimeUnit.SECONDS);
 	}
 	
 	@Override
@@ -128,6 +138,23 @@ public class SdnLabListener implements IOFMessageListener, IFloodlightModule {
 		OFPacketIn pin = (OFPacketIn) msg;
 		OFPort outPort=OFPort.of(0);
 		logger.info("Port: " + pin.getInPort().toString());
+		eth = IFloodlightProviderService.bcStore.get(cntx,
+				IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
+		if (eth.getEtherType() == EthType.IPv4) {
+
+			ipv4 = (IPv4) eth.getPayload();
+			IPv4Address add = ipv4.getSourceAddress();
+			logger.info("IP: " + ipv4.getDestinationAddress().toString());
+		}
+		
+		
+		/*if (ipv4.getProtocol() == IpProtocol.TCP) {
+			TCP tcp = (TCP) ipv4.getPayload();
+		} else if (ipv4.getProtocol() == IpProtocol.UDP) {
+			UDP udp = (UDP) ipv4.getPayload();
+		}*/
+		
+		
 		
 		if (pin.getInPort() == OFPort.of(1) && sw.getEnabledPortNumbers().size() > 2)
 			outPort=OFPort.of(id + 1);
@@ -138,12 +165,18 @@ public class SdnLabListener implements IOFMessageListener, IFloodlightModule {
 			outPort=OFPort.of(1);
 		if (pin.getInPort() == OFPort.of(id + 1) && sw.getEnabledPortNumbers().size() > 2)
 			outPort=OFPort.of(1);
-				
-		Flows.simpleAdd(sw, pin, cntx, outPort);
-		Flows.sendPacketOut(sw);
-		logger.info("************* NEW PACKET IN *************" + id);
+		
+		//if(outPort != OFPort.of(0)) {
+			Flows.simpleAdd(sw, pin, cntx, outPort, eth);
+		//}
+		//} else {
+			
+		//}
+			//Flows.sendPacketOut(sw);
+		
+		/*logger.info("************* NEW PACKET IN *************" + id);
 		PacketExtractor extractor = new PacketExtractor();
-		extractor.packetExtract(cntx);
+		extractor.packetExtract(cntx);*/
 		return Command.CONTINUE;
 	}
 }
