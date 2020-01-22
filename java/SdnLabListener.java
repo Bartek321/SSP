@@ -43,7 +43,6 @@ public class SdnLabListener implements IOFMessageListener, IFloodlightModule {
 	private FloodlightContext cntx;
 	
 	HashMap<Integer, Integer> processMap = new HashMap<>();
-	
 	int id = 0;
 	
 	public SdnLabListener() {
@@ -94,12 +93,6 @@ public class SdnLabListener implements IOFMessageListener, IFloodlightModule {
 		return null;
 	}
 
-/*	@Override
-	public Collection<Class<? extends IFloodlightService>> getModuleDependencies() {
-		// TODO Auto-generated method stub
-		return null;
-	}*/
-
 	@Override
 	public void init(FloodlightModuleContext context) throws FloodlightModuleException {
 		floodlightProvider = context.getServiceImpl(IFloodlightProviderService.class);
@@ -111,9 +104,7 @@ public class SdnLabListener implements IOFMessageListener, IFloodlightModule {
 		floodlightProvider.addOFMessageListener(OFType.PACKET_IN, this);
 		logger.info("******************* START **************************");
 	}
-	
-	
-	
+
 	public int getId() {
 		int value = 101, temp = 0, id = 0;
 
@@ -140,21 +131,6 @@ public class SdnLabListener implements IOFMessageListener, IFloodlightModule {
 		logger.info("Port: " + pin.getInPort().toString());
 		eth = IFloodlightProviderService.bcStore.get(cntx,
 				IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
-		if (eth.getEtherType() == EthType.IPv4) {
-
-			ipv4 = (IPv4) eth.getPayload();
-			IPv4Address add = ipv4.getSourceAddress();
-			logger.info("IP: " + ipv4.getDestinationAddress().toString());
-		}
-		
-		
-		/*if (ipv4.getProtocol() == IpProtocol.TCP) {
-			TCP tcp = (TCP) ipv4.getPayload();
-		} else if (ipv4.getProtocol() == IpProtocol.UDP) {
-			UDP udp = (UDP) ipv4.getPayload();
-		}*/
-		
-		
 		
 		if (pin.getInPort() == OFPort.of(1) && sw.getEnabledPortNumbers().size() > 2)
 			outPort=OFPort.of(id + 1);
@@ -169,14 +145,8 @@ public class SdnLabListener implements IOFMessageListener, IFloodlightModule {
 		//if(outPort != OFPort.of(0)) {
 			Flows.simpleAdd(sw, pin, cntx, outPort, eth);
 		//}
-		//} else {
-			
-		//}
+
 			//Flows.sendPacketOut(sw);
-		
-		/*logger.info("************* NEW PACKET IN *************" + id);
-		PacketExtractor extractor = new PacketExtractor();
-		extractor.packetExtract(cntx);*/
 		return Command.CONTINUE;
 	}
 }
